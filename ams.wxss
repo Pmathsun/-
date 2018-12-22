@@ -1,0 +1,5 @@
+.btn1{
+  width: 60%;
+  top: 10%;
+    opacity:0.4;
+}

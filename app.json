@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "pages/page/page",
+    "pages/wifi_station/ams/ams",
+    "pages/wifi_station/tianqi/tianqi"
+    
+    
+  ],
+  "window": {
+    "backgroundTextStyle": "black",
+    "navigationBarBackgroundColor": "#6A5ACD",
+    "navigationBarTitleText": "闯红灯数据查看",
+    "navigationBarTextStyle": "black",
+    "enablePullDownRefresh": true
+  },
+  "debug": true
+}

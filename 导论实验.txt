@@ -1,0 +1,298 @@
+#include "OurSpark.h"//引用头文件，将OurSpark.h头文件放到项目同一文件夹内
+#include <SoftwareSerial.h>
+
+#define humanHotSensor 4//人体传感器
+#define PIN 6//彩灯
+#define buzzer_pin 8
+
+#define SSID        "mi8" //改为你的Wi-Fi名称
+
+#define PASSWORD    "12345678mwz"//Wi-Fi密码
+
+#define HOST_NAME   "api.heclouds.com"
+
+#define DEVICEID    "505357639" //OneNet上的设备ID
+
+#define PROJECTID   "184188" //OneNet上的产品ID
+
+#define HOST_PORT   (80)
+
+String apiKey="1WvrgHaBi0SljxNjhOTq=8Ciw8Q=";//与你的设备绑定的APIKey
+
+#define INTERVAL_NET      17000             //定义发送时间
+
+#include <Wire.h>                                  //调用库  
+
+#include <ESP8266.h>
+
+
+#define IDLE_TIMEOUT_MS  3000      // Amount of time to wait (in milliseconds) with no data 
+
+                                   // received before closing the connection.  If you know the server
+
+                                   // you're accessing is quick to respond, you can reduce this value.
+
+
+
+//WEBSITE     
+
+char buf[10];
+
+
+
+#define INTERVAL_sensor 2000
+
+unsigned long sensorlastTime = millis();
+
+String mCottenData;
+
+String jsonToSend;
+
+#include <SoftwareSerial.h>
+
+#define EspSerial mySerial
+
+#define UARTSPEED  9600
+
+SoftwareSerial mySerial(2, 3); /* RX:D3, TX:D2 */
+
+ESP8266 wifi(&EspSerial);
+
+//ESP8266 wifi(Serial1);                                      //定义一个ESP8266（wifi）的对象
+
+unsigned long net_time1 = millis();                          //数据上传服务器时间
+
+unsigned long sensor_time = millis();                        //传感器采样时间计时器
+
+
+
+//int SensorData;                                   //用于存储传感器数据
+
+String postString;                                //用于存储发送数据的字符串
+
+//String jsonToSend;                                //用于存储发送的json格式参数
+
+
+
+  int a=0;
+
+bool humanHotState = false;
+
+
+ColorLEDController LEDController1(2, 6);  //实例化一个ColorLEDController对象
+//参数中第一个2表示最大级联ColorLED个数，第二个6表示使用D6口控制LED灯。
+
+
+void setup() //创建无返回值函数
+{
+   //setup()函数用于初始化
+   Serial.begin(9600);    //串口初始化
+   pinMode(humanHotSensor, INPUT);
+   pinMode(PIN, OUTPUT);
+   pinMode(buzzer_pin,OUTPUT);
+
+   while (!Serial); // wait for Leonardo enumeration, others continue immediately
+
+    Serial.print(F("setup begin\r\n"));
+
+    delay(100);
+
+     WifiInit(EspSerial, UARTSPEED);
+
+
+
+  Serial.print(F("FW Version:"));
+
+  Serial.println(wifi.getVersion().c_str());
+
+
+
+  if (wifi.setOprToStationSoftAP()) {
+
+    Serial.print(F("to station + softap ok\r\n"));
+
+  } else {
+
+    Serial.print(F("to station + softap err\r\n"));
+
+  }
+
+
+
+  if (wifi.joinAP(SSID, PASSWORD)) {
+
+    Serial.print(F("Join AP success\r\n"));
+
+
+
+    Serial.print(F("IP:"));
+
+    Serial.println( wifi.getLocalIP().c_str());
+
+  } else {
+
+    Serial.print(F("Join AP failure\r\n"));
+
+  }
+
+
+
+  if (wifi.disableMUX()) {
+
+    Serial.print(F("single ok\r\n"));
+
+  } else {
+
+    Serial.print(F("single err\r\n"));
+
+  }
+
+
+
+  Serial.print(F("setup end\r\n"));
+    
+}
+
+void loop()   //loop循环函数
+{
+ humanHotState = digitalRead(humanHotSensor);
+  Serial.println(humanHotState);
+
+ if (humanHotState) {
+  a+=1;
+  LEDController1.ShowColor(0,255,0,0); //第一个参数表示点亮0号灯，让其显示红光
+  delay(50);  //延迟1秒输出
+  
+  LEDController1.ShowColor(0,0,0,255); //第一个参数表示点亮0号灯，让其显示蓝光
+  delay(50);  //延迟1秒输出
+
+   
+  for(int i=400;i<=600;i++)  //Increase the frequency from 200HZ to 800HZ circularly. 
+  {
+    tone(buzzer_pin,i);    //Output frequency in the port.
+    delay(10); 
+     LEDController1.ShowColor(0,255,0,0); //第一个参数表示点亮0号灯，让其显示红光
+  delay(50);  //延迟1秒输出
+  
+  LEDController1.ShowColor(0,0,0,255); //第一个参数表示点亮0号灯，让其显示蓝光
+  delay(50);  //延迟1秒输出
+     
+  }
+  for(int i=600;i>=400;i--)
+  {
+    tone(buzzer_pin,i);
+    delay(10); //The frequency lasts 10ms.
+       LEDController1.ShowColor(0,255,0,0); //第一个参数表示点亮0号灯，让其显示红光
+  delay(50);  //延迟1秒输出
+  
+  LEDController1.ShowColor(0,0,0,255); //第一个参数表示点亮0号灯，让其显示蓝光
+  delay(50);  //延迟1秒输出
+   
+  }
+    
+    }
+  else 
+  {
+    LEDController1.ShowColor(0,0,0,0);
+    tone(buzzer_pin,50);
+     
+
+    
+  }
+  updateSensorData();                                     //将数据上传到服务器的函数
+  Serial.println(a);}
+ 
+
+ 
+void updateSensorData() {
+
+  if (wifi.createTCP(HOST_NAME, HOST_PORT)) { //建立TCP连接，如果失败，不能发送该数据
+
+    Serial.print("create tcp ok\r\n");
+
+
+
+jsonToSend="{\"a\":";
+
+    dtostrf(a,1,2,buf);
+
+    jsonToSend+="\""+String(buf)+"\"";
+
+    jsonToSend+="}";
+
+
+
+
+
+
+
+    postString="POST /devices/";
+
+    postString+=DEVICEID;
+
+    postString+="/datapoints?type=3 HTTP/1.1";
+
+    postString+="\r\n";
+
+    postString+="api-key:";
+
+    postString+=apiKey;
+
+    postString+="\r\n";
+
+    postString+="Host:api.heclouds.com\r\n";
+
+    postString+="Connection:close\r\n";
+
+    postString+="Content-Length:";
+
+    postString+=jsonToSend.length();
+
+    postString+="\r\n";
+
+    postString+="\r\n";
+
+    postString+=jsonToSend;
+
+    postString+="\r\n";
+
+    postString+="\r\n";
+
+    postString+="\r\n";
+
+
+
+  const char *postArray = postString.c_str();                 //将str转化为char数组
+
+  Serial.println(postArray);
+
+  wifi.send((const uint8_t*)postArray, strlen(postArray));    //send发送命令，参数必须是这两种格式，尤其是(const uint8_t*)
+
+  Serial.println("send success");   
+
+     if (wifi.releaseTCP()) {                                 //释放TCP连接
+
+        Serial.print("release tcp ok\r\n");
+
+        } 
+
+     else {
+
+        Serial.print("release tcp err\r\n");
+
+        }
+
+      postArray = NULL;                                       //清空数组，等待下次传输数据
+
+  
+
+  } else {
+
+    Serial.print("create tcp err\r\n");
+
+  }
+
+}
+
+
+ 
